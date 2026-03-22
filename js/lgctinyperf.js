@@ -61,7 +61,7 @@ app.registerExtension({
             // We use the 'isGhosting' flag set in the draw loop above
             if (isGhosting) {
                 const [w, h] = node.size;
-                const color = "#333";
+                const color = node.color || "#333";
 
                 // Simple Box
                 ctx.fillStyle = "#1a1a1a";
