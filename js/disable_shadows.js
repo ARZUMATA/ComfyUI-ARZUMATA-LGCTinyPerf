@@ -19,8 +19,17 @@ app.registerExtension({
             console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Disabled");
         };
 
+        // Force reset on mouse release
+        window.addEventListener("mouseup", () => {
+            if (isGhosting) {
+                isGhosting = false;
+                app.canvas?.setDirty(true, true);
+            }
+        });
+
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
+        const originalDrawGroups = LGC.prototype.drawGroups;
 
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
@@ -31,13 +40,13 @@ app.registerExtension({
 
             if (moving) {
                 if (!isGhosting) {
-                    console.log("ARZUMATA LGCTinyPerf Ghost Mode: ON");
+                    // console.log("ARZUMATA LGCTinyPerf Ghost Mode: ON");
                     isGhosting = true;
                 }
                 this.links_render_mode = -1; // Kill links
             } else {
                 if (isGhosting) {
-                    console.log("ARZUMATA LGCTinyPerf Ghost Mode: OFF");
+                    // console.log("ARZUMATA LGCTinyPerf Ghost Mode: OFF");
                     isGhosting = false;
                     this.links_render_mode = 0; // Restore to Straight
                     this.setDirty(true, true);
@@ -52,15 +61,35 @@ app.registerExtension({
             // We use the 'isGhosting' flag set in the draw loop above
             if (isGhosting) {
                 const [w, h] = node.size;
+                const color = "#333";
+
+                // Optimized Box
                 ctx.fillStyle = "#1a1a1a";
                 ctx.beginPath();
                 ctx.roundRect(0, 0, w, h, 4);
                 ctx.fill();
-                ctx.strokeStyle = "#444";
-                ctx.stroke();
+
+                // Colored Header
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.roundRect(0, 0, w, 22, [4, 4, 0, 0]); 
+                ctx.fill();
+
+                ctx.strokeStyle = color;
+                ctx.strokeRect(0, 0, w, h);
+                
                 return; // SKIP everything else
             }
             return originalDrawNode.apply(this, arguments);
+        };
+
+        // Hook Group Drawing
+        LGC.prototype.drawGroups = function(ctx) {
+            if (isGhosting) {
+                // Skip groups entirely for MAX speed:
+                return; 
+            }
+            return originalDrawGroups.apply(this, arguments);
         };
 
         console.log("ARZUMATA LGCTinyPerf Patch: Persistence Patch Loaded.");
