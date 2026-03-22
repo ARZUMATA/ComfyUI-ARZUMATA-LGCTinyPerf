@@ -8,9 +8,11 @@ app.registerExtension({
 
         // Persistent State
         let isGhosting = false;
-        
+        const originalSettings = { links: 0 };
+
         // Permanent UI Tweaks
         const disableFX = (canvas) => {
+            if (!canvas) return;
             canvas.render_shadows = false;              // No node shadows
             canvas.draw_shadows = false;                // Double check
             canvas.render_connections_border = false;   // No connection border
@@ -19,39 +21,37 @@ app.registerExtension({
             console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Disabled");
         };
 
+        const startGhosting = (canvas) => {
+            if (isGhosting) return;
+            originalSettings.links = canvas.links_render_mode;
+            canvas.links_render_mode = -1; // Kill links
+            isGhosting = true;
+        };
+
+        const stopGhosting = (canvas) => {
+            if (!isGhosting) return;
+            canvas.links_render_mode = originalSettings.links;
+            isGhosting = false;
+            canvas.setDirty(true, true);
+        };
+
         // Force reset on mouse release
         window.addEventListener("mouseup", () => {
-            if (isGhosting) {
-                isGhosting = false;
-                app.canvas?.setDirty(true, true);
-            }
+            if (isGhosting) stopGhosting(app.canvas);
         });
 
+        // Hook the Prototypes
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
         const originalDrawGroups = LGC.prototype.drawGroups;
 
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
-            disableFX(this);
-
             // Check every frame if we are moving
             const moving = this.dragging_canvas;
-
-            if (moving) {
-                if (!isGhosting) {
-                    // console.log("ARZUMATA LGCTinyPerf Ghost Mode: ON");
-                    isGhosting = true;
-                }
-                this.links_render_mode = -1; // Kill links
-            } else {
-                if (isGhosting) {
-                    // console.log("ARZUMATA LGCTinyPerf Ghost Mode: OFF");
-                    isGhosting = false;
-                    this.links_render_mode = 0; // Restore to Straight
-                    this.setDirty(true, true);
-                }
-            }
+            
+            if (moving) startGhosting(this);
+            else stopGhosting(this);
 
             return originalDraw.apply(this, arguments);
         };
@@ -63,7 +63,7 @@ app.registerExtension({
                 const [w, h] = node.size;
                 const color = "#333";
 
-                // Optimized Box
+                // Simple Box
                 ctx.fillStyle = "#1a1a1a";
                 ctx.beginPath();
                 ctx.roundRect(0, 0, w, h, 4);
@@ -73,6 +73,7 @@ app.registerExtension({
                 ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.roundRect(0, 0, w, 22, [4, 4, 0, 0]); 
+                // ctx.roundRect(0, 0, w, 22); 
                 ctx.fill();
 
                 ctx.strokeStyle = color;
@@ -85,13 +86,12 @@ app.registerExtension({
 
         // Hook Group Drawing
         LGC.prototype.drawGroups = function(ctx) {
-            if (isGhosting) {
-                // Skip groups entirely for MAX speed:
-                return; 
-            }
+            if (isGhosting) return; // Completely skip group rendering
             return originalDrawGroups.apply(this, arguments);
         };
 
-        console.log("ARZUMATA LGCTinyPerf Patch: Persistence Patch Loaded.");
+        // Kickstart the first run
+        setTimeout(() => disableFX(app.canvas), 1000);
+        console.log("ARZUMATA LGCTinyPerf: Optimized and Ready.");
     }
 });
