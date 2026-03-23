@@ -36,13 +36,27 @@ app.registerExtension({
         // Persistent State
         let isGhosting = false;
         let nodes_moving = false; // tracks if nodes are being moved
-        const originalSettings = { links: 0 };
+        const originalSettings = {
+            links: 0,
+            render_shadows: null,
+            draw_shadows: null,
+            render_connections_border: null,
+            highquality_render: null,
+            render_collapsed_slots: null,
+        };
 
-        // Permanent UI Tweaks
+        // Disable FX and save original values first
         const disableFX = (canvas) => {
-            const disableFX = app.ui.settings.getSettingValue('LGCTinyPerf.DisableFX');
+            const canDisableFX = app.ui.settings.getSettingValue('LGCTinyPerf.DisableFX');
 
-            if (!canvas || !disableFX) return;
+            if (!canvas || !canDisableFX) return;
+
+            // Save original settings before disabling
+            originalSettings.render_shadows = canvas.render_shadows;
+            originalSettings.draw_shadows = canvas.draw_shadows;
+            originalSettings.render_connections_border = canvas.render_connections_border;
+            originalSettings.highquality_render = canvas.highquality_render;
+            originalSettings.render_collapsed_slots = canvas.render_collapsed_slots;
 
             canvas.render_shadows = false;              // No node shadows
             canvas.draw_shadows = false;                // Double check
@@ -51,6 +65,37 @@ app.registerExtension({
             canvas.render_collapsed_slots = false;      // Green dot thingy on collapsed nodes
             console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Disabled");
         };
+
+        // Restore original settings - Enable FX (only restore non-null values)
+        const enableFX = (canvas) => {
+            if (!canvas) return;
+            
+            if (originalSettings.render_shadows !== null) canvas.render_shadows = originalSettings.render_shadows;
+            if (originalSettings.draw_shadows !== null) canvas.draw_shadows = originalSettings.draw_shadows;
+            if (originalSettings.render_connections_border !== null) canvas.render_connections_border = originalSettings.render_connections_border;
+            if (originalSettings.highquality_render !== null) canvas.highquality_render = originalSettings.highquality_render;
+            if (originalSettings.render_collapsed_slots !== null) canvas.render_collapsed_slots = originalSettings.render_collapsed_slots;
+            
+            console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Enabled");
+        };
+
+        // Handle DisableFX setting change - apply or revert based on checkbox state
+        const handleDisableFXSettingChange = (newValue) => {
+            if (!app.canvas) return;
+            
+            if (newValue === true) {
+                disableFX(app.canvas);
+            } else {
+                enableFX(app.canvas);
+            }
+        };
+
+        // Listen for setting changes on LGCTinyPerf.DisableFX
+        app.ui.settings.addEventListener('settingChanged', (event) => {
+            if (event.detail?.id === 'LGCTinyPerf.DisableFX') {
+                handleDisableFXSettingChange(event.detail.value);
+            }
+        });
 
         const startGhosting = (canvas) => {
             if (isGhosting) return;
