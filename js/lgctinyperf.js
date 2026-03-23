@@ -8,6 +8,7 @@ app.registerExtension({
 
         // Persistent State
         let isGhosting = false;
+        let nodes_moving = false; // tracks if nodes are being moved
         const originalSettings = { links: 0 };
 
         // Permanent UI Tweaks
@@ -35,6 +36,23 @@ app.registerExtension({
             canvas.setDirty(true, true);
         };
 
+        // Hook canvas pointer events to detect when mouse is down, indicating that selected nodes may be dragged
+        // LiteGraph uses native DOM event listeners, so we hook into the canvas element directly
+        const onPointerDown = (e) => {
+            if (app.canvas.selected_nodes && Object.keys(app.canvas.selected_nodes).length > 0) {
+                nodes_moving = true;
+                app.canvas.setDirty(true);
+            }
+        };
+        
+        const onPointerUp = (e) => {
+            nodes_moving = false;
+        };
+        
+        // Add event listeners to the canvas element
+        app.canvas.canvas?.addEventListener('pointerdown', onPointerDown, true);
+        app.canvas.canvas?.addEventListener('pointerup', onPointerUp, true);
+
         // Force reset on mouse release
         window.addEventListener("mouseup", () => {
             if (isGhosting) stopGhosting(app.canvas);
@@ -44,7 +62,14 @@ app.registerExtension({
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
         const originalDrawGroups = LGC.prototype.drawGroups;
-
+        const originalDrawConnections = LGC.prototype.drawConnections;
+        
+        // Hook connection drawing - skip when nodes are moving or ghosting
+        LGC.prototype.drawConnections = function(ctx) {
+            if (nodes_moving || isGhosting) return; // Skip drawing connections when ghosting
+            return originalDrawConnections.apply(this, arguments);
+        };
+        
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
             // Check every frame if we are moving
