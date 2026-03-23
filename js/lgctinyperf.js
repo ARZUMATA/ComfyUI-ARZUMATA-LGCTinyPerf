@@ -2,6 +2,33 @@ import { app } from "../../scripts/app.js";
 
 app.registerExtension({
     name: "ARZUMATA.LGCTinyPerf",
+    settings: [
+        {
+            id: 'LGCTinyPerf.GhostingEnabled',
+            category: ['LGCTinyPerf', 'General', 'GhostingEnabled'],
+            name: 'Ghost mode enabled.',
+            type: 'boolean',
+            defaultValue: true,
+            tooltip: "When dragging canvas, nodes are simplified to colored boxes for better performance.",
+        },
+        {
+            id: "LGCTinyPerf.HideConnections",
+            category: ['LGCTinyPerf', 'General', 'HideConnections'],
+            name: "Hide connections while dragging nodes",
+            type: "boolean",
+            tooltip: "When enabled, connection lines are hidden when dragging nodes.",
+            defaultValue: true,
+        },
+        {
+            id: "LGCTinyPerf.DisableFX",
+            category: ['LGCTinyPerf', 'General', 'DisableFX'],
+            name: "Disable FX",
+            type: "boolean",
+            tooltip: "Disables shadows, connection borders, and high-quality rendering. Requires page refresh to take effect.",
+            defaultValue: true,
+        },
+    ],
+
     async setup() {
         const LGC = LGraphCanvas;
         if (!LGC) return;
@@ -13,7 +40,10 @@ app.registerExtension({
 
         // Permanent UI Tweaks
         const disableFX = (canvas) => {
-            if (!canvas) return;
+            const disableFX = app.ui.settings.getSettingValue('LGCTinyPerf.DisableFX');
+
+            if (!canvas || !disableFX) return;
+
             canvas.render_shadows = false;              // No node shadows
             canvas.draw_shadows = false;                // Double check
             canvas.render_connections_border = false;   // No connection border
@@ -66,7 +96,8 @@ app.registerExtension({
         
         // Hook connection drawing - skip when nodes are moving or ghosting
         LGC.prototype.drawConnections = function(ctx) {
-            if (nodes_moving || isGhosting) return; // Skip drawing connections when ghosting
+            const hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
+            if (nodes_moving && hideConnections) return; // Skip drawing connections when ghosting
             return originalDrawConnections.apply(this, arguments);
         };
         
@@ -75,7 +106,9 @@ app.registerExtension({
             // Check every frame if we are moving
             const moving = this.dragging_canvas;
             
-            if (moving) startGhosting(this);
+            // Only apply ghosting if setting is enabled
+            const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
+            if (moving && ghostEnabled) startGhosting(this);
             else stopGhosting(this);
 
             return originalDraw.apply(this, arguments);
@@ -83,8 +116,11 @@ app.registerExtension({
 
         // Hook Node Drawing
         LGC.prototype.drawNode = function(node, ctx) {
+            // Only apply ghost mode if setting is enabled and we're in ghost state
+            const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
+
             // We use the 'isGhosting' flag set in the draw loop above
-            if (isGhosting) {
+            if (isGhosting && ghostEnabled) {
                 let [w, h] = node.renderingSize;
                 
                 // We also have title height as it's positioned above the node body
