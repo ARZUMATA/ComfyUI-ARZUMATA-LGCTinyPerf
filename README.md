@@ -18,3 +18,7 @@ Place this folder in your `ComfyUI/custom_nodes/` directory.
 ## Usage
 
 The tweaks are applied automatically when ComfyUI starts. No additional configuration needed.
+
+## Preview
+
+https://github.com/user-attachments/assets/044557a3-b72c-469e-81c3-723adf289033
