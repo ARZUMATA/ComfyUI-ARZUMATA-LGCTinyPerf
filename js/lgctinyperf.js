@@ -160,12 +160,26 @@ app.registerExtension({
         const onPointerDown = (e) => {
             if (app.canvas.selected_nodes && Object.keys(app.canvas.selected_nodes).length > 0) {
                 nodes_moving = true;
+                
+                // Also hide UE links when nodes start moving
+                let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
+                const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
+                if (toggleUELinks && hideConnections) {
+                    toggleUseEverywhereRendering(false);
+                }
+                
                 app.canvas.setDirty(true);
             }
         };
         
         const onPointerUp = (e) => {
             nodes_moving = false;
+            
+            // Restore UE links when node movement stops
+            const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
+            if (toggleUELinks) {
+                toggleUseEverywhereRendering(true);
+            }
         };
         
         // Add event listeners to the canvas element
@@ -185,7 +199,7 @@ app.registerExtension({
         
         // Hook connection drawing - skip when nodes are moving or ghosting
         LGC.prototype.drawConnections = function(ctx) {
-            const hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
+            let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
             if (nodes_moving && hideConnections) return; // Skip drawing connections when ghosting
             return originalDrawConnections.apply(this, arguments);
         };
