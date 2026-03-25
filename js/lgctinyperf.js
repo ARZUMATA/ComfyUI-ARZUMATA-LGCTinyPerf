@@ -51,6 +51,7 @@ app.registerExtension({
             render_connections_border: null,
             highquality_render: null,
             render_collapsed_slots: null,
+            ue_showlinks: null, // Store original UE showlinks setting value for restoration
         };
 
         // Disable FX and save original values first
@@ -105,23 +106,28 @@ app.registerExtension({
             }
         });
 
-        // Toggle cg_use_everywhere link rendering when ghosting starts/stops
+        // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
         const toggleUseEverywhereRendering = (enabled) => {
             try {
                 if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
                     const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
                     
                     if (enabled) {
-                        // Restore to previous mode (4 = always show)
-                        app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 4);
-                        console.log(`[LGCTinyPerf] Restored UE link rendering (showlinks=4)`);
+                        // Restore to the original user setting value
+                        if (originalSettings.ue_showlinks !== null && originalSettings.ue_showlinks !== currentMode) {
+                            app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', originalSettings.ue_showlinks);
+                            // console.log(`[LGCTinyPerf] Restored UE link rendering to user setting (showlinks=${originalSettings.ue_showlinks})`);
+                        } else {
+                            // console.log(`[LGCTinyPerf] UE link rendering already at user setting (showlinks=${currentMode})`);
+                        }
                     } else {
-                        // Save current mode and hide links (0 = hidden)
-                        if (!this._ueShowlinksBeforeGhosting) {
-                            this._ueShowlinksBeforeGhosting = currentMode;
+                        // Save current mode before hiding links (0 = hidden)
+                        if (originalSettings.ue_showlinks === null) {
+                            originalSettings.ue_showlinks = currentMode;
+                            // console.log(`[LGCTinyPerf] Saved UE link rendering setting: showlinks=${currentMode}`);
                         }
                         app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
-                        console.log(`[LGCTinyPerf] Hidden UE links during ghosting (showlinks=0)`);
+                        // console.log(`[LGCTinyPerf] Hidden UE links during ghosting (showlinks=0)`);
                     }
                 } else {
                     console.warn(`[LGCTinyPerf] Use Everywhere Graphics.showlinks setting not found`);
