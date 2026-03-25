@@ -27,6 +27,14 @@ app.registerExtension({
             tooltip: "Disables shadows, connection borders, and high-quality rendering. Requires page refresh to take effect.",
             defaultValue: true,
         },
+        {
+            id: "LGCTinyPerf.ToggleUELinks",
+            category: ['LGCTinyPerf', 'UE Nodes', 'ToggleUELinks'],
+            name: 'Toggle cg_use_everywhere links during ghosting',
+            type: 'boolean',
+            defaultValue: true,
+            tooltip: "Automatically hides cg_use_everywhere links when dragging nodes for better performance.",
+        },
     ],
 
     async setup() {
@@ -130,7 +138,10 @@ app.registerExtension({
             isGhosting = true;
             
             // Hide cg_use_everywhere links during ghosting for better performance
-            toggleUseEverywhereRendering(false);
+            const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
+            if (toggleUELinks) {
+                toggleUseEverywhereRendering(false);
+            }
         };
 
         const stopGhosting = (canvas) => {
