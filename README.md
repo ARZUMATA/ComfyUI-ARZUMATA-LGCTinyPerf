@@ -22,3 +22,14 @@ The tweaks are applied automatically when ComfyUI starts. No additional configur
 ## Preview
 
 https://github.com/user-attachments/assets/044557a3-b72c-469e-81c3-723adf289033
+
+## Third-Party Integration
+
+### UE Nodes
+This extension works with **[cg-use-everywhere](https://github.com/chrisgoringe/cg-use-everywhere)**:
+
+- When **ghosting mode** is active, use_everywhere links are automatically hidden for better performance by setting show links to off
+- When **nodes are being moved**, UE links are also temporarily disabled
+- Upon completion of dragging/movement, the original UE link rendering setting is restored
+
+This integration can be enabled/disabled via the `LGCTinyPerf > UE Nodes` setting in ComfyUI settings.
