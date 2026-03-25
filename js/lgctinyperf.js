@@ -97,17 +97,50 @@ app.registerExtension({
             }
         });
 
+        // Toggle cg_use_everywhere link rendering when ghosting starts/stops
+        const toggleUseEverywhereRendering = (enabled) => {
+            try {
+                if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
+                    const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
+                    
+                    if (enabled) {
+                        // Restore to previous mode (4 = always show)
+                        app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 4);
+                        console.log(`[LGCTinyPerf] Restored UE link rendering (showlinks=4)`);
+                    } else {
+                        // Save current mode and hide links (0 = hidden)
+                        if (!this._ueShowlinksBeforeGhosting) {
+                            this._ueShowlinksBeforeGhosting = currentMode;
+                        }
+                        app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
+                        console.log(`[LGCTinyPerf] Hidden UE links during ghosting (showlinks=0)`);
+                    }
+                } else {
+                    console.warn(`[LGCTinyPerf] Use Everywhere Graphics.showlinks setting not found`);
+                }
+            } catch (e) {
+                console.error(`[LGCTinyPerf] Error toggling UE rendering:`, e);
+            }
+        };
+
         const startGhosting = (canvas) => {
             if (isGhosting) return;
             originalSettings.links = canvas.links_render_mode;
             canvas.links_render_mode = -1; // Kill links
             isGhosting = true;
+            
+            // Hide cg_use_everywhere links during ghosting for better performance
+            toggleUseEverywhereRendering(false);
         };
 
         const stopGhosting = (canvas) => {
             if (!isGhosting) return;
             canvas.links_render_mode = originalSettings.links;
             isGhosting = false;
+            
+            // Restore cg_use_everywhere links when no longer ghosting
+            toggleUseEverywhereRendering(true);
+            
             canvas.setDirty(true, true);
         };
 
