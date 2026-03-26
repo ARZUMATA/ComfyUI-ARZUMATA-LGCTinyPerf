@@ -1,6 +1,20 @@
 import { app } from "../../scripts/app.js";
 
-import { shared, deferred_actions } from "../cg-use-everywhere/shared.js";
+// Optional import  UE extension shared module 
+let ueExtensionShared = null;
+
+async function tryImportShared() {
+    try {
+        const imported = await import("../cg-use-everywhere/shared.js");
+        ueExtensionShared = imported.shared;
+        console.log('[LGCTinyPerf] cg-use-everywhere shared module loaded');
+    } catch (e) {
+        console.log('[LGCTinyPerf] cg-use-everywhere not installed, link rendering hooks disabled');
+    }
+}
+
+// Try to import early, but don't block extension loading
+tryImportShared();
 
 // Check if cg.customnodes.use_everywhere extension is installed
 function isUseEverywhereInstalled() {
@@ -71,66 +85,57 @@ app.registerExtension({
         const LGC = LGraphCanvas;
         if (!LGC) return;
 
+        // Wait times for modules imports to complete
+        const maxWaitTime = 500; // Maximum wait time in ms
+        const checkInterval = 50; // Check every 50ms
+        let waitedTime = 0;
+        
+        while (!ueExtensionShared && waitedTime < maxWaitTime) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waitedTime += checkInterval;
+        }
+
         // Hook cg.customnodes.use_everywhere extension for link rendering control
         const ueExtension = app.extensions.find(e => e.name === "cg.customnodes.use_everywhere");
         
-        if (ueExtension) {
-            console.log('[LGCTinyPerf] use_everywhere extension found');
-            
-            // Debug: Log all properties to find where linkRenderController is exposed
-            console.log('[LGCTinyPerf] ueExtension object:', ueExtension);
-            console.log('[LGCTinyPerf] ueExtension keys:', Object.keys(ueExtension));
+        if (ueExtension && ueExtensionShared?.linkRenderController) {
+            console.log('[LGCTinyPerf] use_everywhere extension found with shared module');
             
             // Check imported shared module - THIS IS WHERE linkRC IS!
+            const linkRC = ueExtensionShared.linkRenderController;
             
-            console.log('[LGCTinyPerf] Imported shared:', shared);
-            if (shared?.linkRenderController) {
-                console.log('[LGCTinyPerf] Found linkRC on imported shared');
-                
-                const linkRC = shared.linkRenderController;
-                
-                // Store original method references BEFORE replacing
-                const originalDisableAll = linkRC.disable_all_connected_widgets;
-                const originalEnableAll = linkRC.enable_all_disabled_widgets;
-                
-                console.log('[LGCTinyPerf] Methods found:', {
-                    disable_all_connected_widgets: typeof originalDisableAll,
-                    enable_all_disabled_widgets: typeof originalEnableAll,
-                });
-                
-                // Hook disable_all_connected_widgets - hook the instance method directly
-                if (typeof originalDisableAll === 'function') {
-                    linkRC.disable_all_connected_widgets = function(...args) {
-                        if (draggingCanvas || draggingItems) {
-                            return;
-                        }
-                        // if (isGhosting && LGCTinyPerf.GhostingEnabled) {
-                            // console.log('[LGCTinyPerf] Skipping disable_all_connected_widgets during ghosting');
-                        // }
-
-                        return originalDisableAll.apply(this, args);
-                    };
-                    // console.log('[LGCTinyPerf] Hooked linkRC.disable_all_connected_widgets');
-                }
-                
-                // Hook enable_all_disabled_widgets - hook the instance method directly
-                if (typeof originalEnableAll === 'function') {
-                    linkRC.enable_all_disabled_widgets = function(...args) {
-                        // if (isGhosting && LGCTinyPerf.GhostingEnabled) {
-                            // console.log('[LGCTinyPerf] Skipping enable_all_disabled_widgets during ghosting');
-                            if (draggingCanvas || draggingItems) {
-                                return;
-                            }
-                        // }
-                        return originalEnableAll.apply(this, args);
-                    };
-                    // console.log('[LGCTinyPerf] Hooked linkRC.enable_all_disabled_widgets');
-                }
-            } else {
-                console.warn('[LGCTinyPerf] shared.linkRenderController not found in imported module either');
+            // Store original method references BEFORE replacing
+            const originalDisableAll = linkRC.disable_all_connected_widgets;
+            const originalEnableAll = linkRC.enable_all_disabled_widgets;
+            
+            console.log('[LGCTinyPerf] Methods found:', {
+                disable_all_connected_widgets: typeof originalDisableAll,
+                enable_all_disabled_widgets: typeof originalEnableAll,
+            });
+            
+            // Hook disable_all_connected_widgets
+            if (typeof originalDisableAll === 'function') {
+                linkRC.disable_all_connected_widgets = function(...args) {
+                    if (draggingCanvas || draggingItems) {
+                        return;
+                    }
+                    return originalDisableAll.apply(this, args);
+                };
+                // console.log('[LGCTinyPerf] Hooked linkRC.disable_all_connected_widgets');
+            }
+            
+            // Hook enable_all_disabled_widgets
+            if (typeof originalEnableAll === 'function') {
+                linkRC.enable_all_disabled_widgets = function(...args) {
+                    if (draggingCanvas || draggingItems) {
+                        return;
+                    }
+                    return originalEnableAll.apply(this, args);
+                };
+                // console.log('[LGCTinyPerf] Hooked linkRC.enable_all_disabled_widgets');
             }
         } else {
-            console.log('[LGCTinyPerf] use_everywhere extension not found');
+            console.log('[LGCTinyPerf] use_everywhere extension not found or no linkRenderController');
         }
 
         // Persistent State
