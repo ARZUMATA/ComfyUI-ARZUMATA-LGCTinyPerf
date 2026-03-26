@@ -114,6 +114,7 @@ app.registerExtension({
 
         // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
         const toggleUseEverywhereRendering = (enabled) => {
+
             try {
                 if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
                     const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
@@ -127,11 +128,8 @@ app.registerExtension({
                             // console.log(`[LGCTinyPerf] UE link rendering already at user setting (showlinks=${currentMode})`);
                         }
                     } else {
-                        // Save current mode before hiding links (0 = hidden)
-                        if (originalSettings.ue_showlinks === null) {
-                            originalSettings.ue_showlinks = currentMode;
-                            // console.log(`[LGCTinyPerf] Saved UE link rendering setting: showlinks=${currentMode}`);
-                        }
+                        originalSettings.ue_showlinks = currentMode;
+                        // console.log(`[LGCTinyPerf] Saved UE link rendering setting: showlinks=${currentMode}`);
                         app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
                         // console.log(`[LGCTinyPerf] Hidden UE links during ghosting (showlinks=0)`);
                     }
@@ -147,22 +145,12 @@ app.registerExtension({
             if (isGhosting) return;
             isGhosting = true;
             hideLinks();
-            
-            // Hide cg_use_everywhere links during ghosting for better performance
-            const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
-            if (toggleUELinks) {
-                toggleUseEverywhereRendering(false);
-            }
         };
 
         const stopGhosting = (canvas) => {
             if (!isGhosting) return;
             showLinks();
             isGhosting = false;
-            
-            // Restore cg_use_everywhere links when no longer ghosting
-            toggleUseEverywhereRendering(true);
-            
             canvas.setDirty(true, true);
         };
 
@@ -171,12 +159,21 @@ app.registerExtension({
             originalSettings.links = app.canvas.links_render_mode;
             app.canvas.links_render_mode = -1; // Kill links
             linksHidden = true;
+            
+            // Hide cg_use_everywhere links during ghosting for better performance
+            const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
+            if (toggleUELinks) {
+                toggleUseEverywhereRendering(false);
+            }
         };
 
         const showLinks = () => {
             if (!linksHidden) return;
             app.canvas.links_render_mode = originalSettings.links;
             linksHidden = false;
+            
+            // Restore cg_use_everywhere links when no longer ghosting
+            toggleUseEverywhereRendering(true);
         };
 
         // Hook canvas pointer events to detect when mouse is down, indicating that selected nodes may be dragged
