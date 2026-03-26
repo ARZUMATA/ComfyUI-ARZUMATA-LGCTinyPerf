@@ -47,8 +47,8 @@ app.registerExtension({
         let linksHidden = false;
 
         // Check every frame if we are dragging something
-        let draggingCanvas = false
-        let draggingItems = false
+        let draggingCanvas = false;
+        let draggingItems = false;
 
         const originalSettings = {
             links: 0,
@@ -114,7 +114,6 @@ app.registerExtension({
 
         // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
         const toggleUseEverywhereRendering = (enabled) => {
-
             try {
                 if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
                     const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
@@ -123,15 +122,10 @@ app.registerExtension({
                         // Restore to the original user setting value
                         if (originalSettings.ue_showlinks !== null && originalSettings.ue_showlinks !== currentMode) {
                             app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', originalSettings.ue_showlinks);
-                            // console.log(`[LGCTinyPerf] Restored UE link rendering to user setting (showlinks=${originalSettings.ue_showlinks})`);
-                        } else {
-                            // console.log(`[LGCTinyPerf] UE link rendering already at user setting (showlinks=${currentMode})`);
                         }
                     } else {
                         originalSettings.ue_showlinks = currentMode;
-                        // console.log(`[LGCTinyPerf] Saved UE link rendering setting: showlinks=${currentMode}`);
                         app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
-                        // console.log(`[LGCTinyPerf] Hidden UE links during ghosting (showlinks=0)`);
                     }
                 } else {
                     console.warn(`[LGCTinyPerf] Use Everywhere Graphics.showlinks setting not found`);
@@ -176,54 +170,11 @@ app.registerExtension({
             toggleUseEverywhereRendering(true);
         };
 
-        // Hook canvas pointer events to detect when mouse is down, indicating that selected nodes may be dragged
-        // LiteGraph uses native DOM event listeners, so we hook into the canvas element directly
-        const onPointerDown = (e) => {
-            if (app.canvas.selected_nodes && Object.keys(app.canvas.selected_nodes).length > 0) {
-                nodes_moving = true;
-                
-                // Also hide UE links when nodes start moving
-                let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
-                const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
-                if (toggleUELinks && hideConnections) {
-                    toggleUseEverywhereRendering(false);
-                }
-                
-                app.canvas.setDirty(true);
-            }
-        };
-        
-        const onPointerUp = (e) => {
-            nodes_moving = false;
-            
-            // Restore UE links when node movement stops
-            const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
-            if (toggleUELinks) {
-                toggleUseEverywhereRendering(true);
-            }
-        };
-        
-        // Add event listeners to the canvas element
-        app.canvas.canvas?.addEventListener('pointerdown', onPointerDown, true);
-        app.canvas.canvas?.addEventListener('pointerup', onPointerUp, true);
-
-        // Force reset on mouse release
-        window.addEventListener("mouseup", () => {
-            if (isGhosting) stopGhosting(app.canvas);
-        });
-
         // Hook the Prototypes
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
         const originalDrawGroups = LGC.prototype.drawGroups;
         const originalDrawConnections = LGC.prototype.drawConnections;
-        
-        // Hook connection drawing - skip when nodes are moving or ghosting
-        LGC.prototype.drawConnections = function(ctx) {
-            let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
-            if (nodes_moving && hideConnections) return; // Skip drawing connections when ghosting
-            return originalDrawConnections.apply(this, arguments);
-        };
         
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
@@ -237,17 +188,16 @@ app.registerExtension({
 
             if (ghostEnabled) {
                 if (draggingCanvas && !isGhosting) {
-                    startGhosting(this)
+                    startGhosting(this);
                 } else if (!draggingCanvas && isGhosting) {
-                    stopGhosting(this)
+                    stopGhosting(this);
                 }
             }
 
             if (hideConnections) {
                 if (draggingItems || isGhosting) {
                     hideLinks();
-                }
-                else {
+                } else {
                     showLinks();
                 }
             }
