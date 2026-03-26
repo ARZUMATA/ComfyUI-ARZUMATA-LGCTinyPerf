@@ -44,6 +44,12 @@ app.registerExtension({
         // Persistent State
         let isGhosting = false;
         let nodes_moving = false; // tracks if nodes are being moved
+        let linksHidden = false;
+
+        // Check every frame if we are dragging something
+        let draggingCanvas = false
+        let draggingItems = false
+
         const originalSettings = {
             links: 0,
             render_shadows: null,
@@ -139,9 +145,8 @@ app.registerExtension({
 
         const startGhosting = (canvas) => {
             if (isGhosting) return;
-            originalSettings.links = canvas.links_render_mode;
-            canvas.links_render_mode = -1; // Kill links
             isGhosting = true;
+            hideLinks();
             
             // Hide cg_use_everywhere links during ghosting for better performance
             const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
@@ -152,13 +157,26 @@ app.registerExtension({
 
         const stopGhosting = (canvas) => {
             if (!isGhosting) return;
-            canvas.links_render_mode = originalSettings.links;
+            showLinks();
             isGhosting = false;
             
             // Restore cg_use_everywhere links when no longer ghosting
             toggleUseEverywhereRendering(true);
             
             canvas.setDirty(true, true);
+        };
+
+        const hideLinks = () => {
+            if (linksHidden) return;
+            originalSettings.links = app.canvas.links_render_mode;
+            app.canvas.links_render_mode = -1; // Kill links
+            linksHidden = true;
+        };
+
+        const showLinks = () => {
+            if (!linksHidden) return;
+            app.canvas.links_render_mode = originalSettings.links;
+            linksHidden = false;
         };
 
         // Hook canvas pointer events to detect when mouse is down, indicating that selected nodes may be dragged
@@ -212,13 +230,30 @@ app.registerExtension({
         
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
-            // Check every frame if we are moving
-            const moving = this.dragging_canvas;
+            // Check every frame if we are dragging something
+            draggingCanvas = this.state.draggingCanvas;
+            draggingItems = this.state.draggingItems;
             
             // Only apply ghosting if setting is enabled
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
-            if (moving && ghostEnabled) startGhosting(this);
-            else stopGhosting(this);
+            let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
+
+            if (ghostEnabled) {
+                if (draggingCanvas && !isGhosting) {
+                    startGhosting(this)
+                } else if (!draggingCanvas && isGhosting) {
+                    stopGhosting(this)
+                }
+            }
+
+            if (hideConnections) {
+                if (draggingItems || isGhosting) {
+                    hideLinks();
+                }
+                else {
+                    showLinks();
+                }
+            }
 
             return originalDraw.apply(this, arguments);
         };
