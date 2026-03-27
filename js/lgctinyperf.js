@@ -40,6 +40,14 @@ app.registerExtension({
             defaultValue: true,
             tooltip: "Automatically hides cg_use_everywhere links when dragging nodes for better performance.",
         },
+        {
+            id: "LGCTinyPerf.VueNodesGhostMode",
+            category: ['LGCTinyPerf', 'Vue Nodes', 'VueNodesGhostMode'],
+            name: 'Vue Nodes Ghost Mode',
+            type: 'boolean',
+            defaultValue: true,
+            tooltip: "When Vue nodes are enabled and dragging, simplifies node DOM elements to basic boxes by removing complex CSS (gradients, shadows, animations). Significantly improves FPS during interactions.",
+        },
     ],
 
     async setup() {
@@ -50,6 +58,7 @@ app.registerExtension({
         let isGhosting = false;
         let nodes_moving = false; // tracks if nodes are being moved
         let linksHidden = false;
+        let vueNodesGhostActive = false;
 
         const originalSettings = {
             links: 0,
@@ -159,13 +168,111 @@ app.registerExtension({
             toggleUseEverywhereRendering(app, true, originalSettings);
         };
 
-        // Hook the Prototypes
+        /**
+         * Apply simplified CSS to Vue nodes for better performance during interactions.
+         * This removes complex CSS effects (gradients, shadows, animations) and replaces them with simple solid colors.
+         */
+        const applyVueNodesGhostCSS = () => {
+            if (!app.canvas || !LiteGraph.vueNodesMode) return;
+            
+            // Check if Vue nodes ghost mode is enabled in settings
+            const vueNodesGhostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.VueNodesGhostMode');
+            if (!vueNodesGhostEnabled) {
+                removeVueNodesGhostCSS();
+                return;
+            }
+
+            if (vueNodesGhostActive) return; // Already active
+            
+            vueNodesGhostActive = true;
+            
+            // Create a style element for ghost CSS if it doesn't exist
+            let ghostStyle = document.getElementById('lgctinyperf-ghost-style');
+            if (!ghostStyle) {
+                ghostStyle = document.createElement('style');
+                ghostStyle.id = 'lgctinyperf-ghost-style';
+                ghostStyle.type = 'text/css';
+                document.head.appendChild(ghostStyle);
+            }
+
+            // CSS to simplify Vue nodes during dragging
+            const ghostCSS = `
+                /* Simplified Vue node styling for better performance */
+                .bg-component-node-background {
+                    background: linear-gradient(to bottom, #333 0%, #222 100%) !important;
+                    border-color: #555 !important;
+                }
+                
+                /* Remove complex animations and transitions */
+                .lg-node, 
+                .bg-component-node-background {
+                    transition: none !important;
+                    animation: none !important;
+                }
+                
+                /* Simplified node header - solid color only */
+                .node-header-title,
+                [data-testid^="node-header-"] {
+                    background: linear-gradient(to bottom, #444 0%, #333 100%) !important;
+                    box-shadow: none !important;
+                }
+                
+                /* Simplified slot styling */
+                .slot-connection-dot,
+                [data-testid^="node-slots-"] {
+                    opacity: 0.7 !important;
+                }
+                
+                /* Remove ring effects on hover */
+                .lg-node:hover::before {
+                    box-shadow: none !important;
+                }
+                
+                /* Simplified widget styling */
+                .widget-input,
+                [data-testid^="node-widgets-"] {
+                    background: #2a2a2a !important;
+                    border-color: #444 !important;
+                }
+                
+                /* Remove progress bar animation complexity */
+                .progress-bar,
+                [class*="progress"] {
+                    transition: width 0.1s linear !important;
+                }
+            `;
+
+            ghostStyle.textContent = ghostCSS;
+            
+            // Force reflow to apply styles immediately
+            document.body.offsetHeight;
+            
+            console.log("ARZUMATA LGCTinyPerf: Vue Nodes Ghost CSS Applied");
+        };
+
+        /**
+         * Remove simplified CSS and restore normal styling for Vue nodes.
+         */
+        const removeVueNodesGhostCSS = () => {
+            if (!vueNodesGhostActive) return;
+            
+            vueNodesGhostActive = false;
+            
+            // Remove the ghost style element
+            const ghostStyle = document.getElementById('lgctinyperf-ghost-style');
+            if (ghostStyle) {
+                ghostStyle.remove();
+            }
+            
+            console.log("ARZUMATA LGCTinyPerf: Vue Nodes Ghost CSS Removed");
+        };
+
+        // Hook the Draw Loop
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
         const originalDrawGroups = LGC.prototype.drawGroups;
         const originalDrawConnections = LGC.prototype.drawConnections;
         
-        // Hook the Draw Loop
         LGC.prototype.draw = function() {
             // Update shared drag state for extension hooks to use live values
             updateDragState(this.state.draggingCanvas, this.state.draggingItems);
@@ -190,14 +297,24 @@ app.registerExtension({
                 }
             }
 
+            // Apply Vue nodes ghost CSS during interactions when Vue nodes mode is active
+            const vueNodesGhostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.VueNodesGhostMode');
+            if (vueNodesGhostEnabled && LiteGraph.vueNodesMode) {
+                if ((this.state.draggingCanvas || this.state.draggingItems) && !vueNodesGhostActive) {
+                    applyVueNodesGhostCSS();
+                } else if (!this.state.draggingCanvas && !this.state.draggingItems && vueNodesGhostActive) {
+                    removeVueNodesGhostCSS();
+                }
+            }
+
             return originalDraw.apply(this, arguments);
         };
 
-        // Hook Node Drawing
+        // Hook Node Drawing - also apply ghost mode for legacy nodes
         LGC.prototype.drawNode = function(node, ctx) {
             // Only apply ghost mode if setting is enabled and we're in ghost state
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
-
+            
             // We use the 'isGhosting' flag set in the draw loop above
             if (isGhosting && ghostEnabled) {
                 let [w, h] = node.renderingSize;
@@ -240,6 +357,15 @@ app.registerExtension({
 
         // Kickstart the first run
         setTimeout(() => disableFX(app.canvas), 1000);
+        
+        // Initialize Vue nodes ghost CSS state based on current conditions
+        if (LiteGraph.vueNodesMode && app.canvas) {
+            const vueNodesGhostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.VueNodesGhostMode');
+            if (vueNodesGhostEnabled && (app.canvas.state.draggingCanvas || app.canvas.state.draggingItems)) {
+                applyVueNodesGhostCSS();
+            }
+        }
+        
         console.log("ARZUMATA LGCTinyPerf: Optimized and Ready.");
     }
 });
