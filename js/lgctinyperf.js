@@ -16,34 +16,6 @@ async function tryImportShared() {
 // Try to import early, but don't block extension loading
 tryImportShared();
 
-// Check if cg.customnodes.use_everywhere extension is installed
-function isUseEverywhereInstalled() {
-    try {
-        // The use_everywhere extension registers its settings under "Use Everywhere" namespace
-        return app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined;
-    } catch (e) {
-        return false;
-    }
-}
-
-// Get the full list of registered extensions to check for use_everywhere
-function getRegisteredExtensions() {
-    try {
-        if (app.extensionList && Array.isArray(app.extensionList)) {
-            return app.extensionList.map(ext => ext.name || null);
-        }
-    } catch (e) {
-        console.warn('[LGCTinyPerf] Could not access extension list:', e);
-    }
-    return [];
-}
-
-// Check if use_everywhere is in the registered extensions
-function checkExtensionInList() {
-    const extensions = getRegisteredExtensions();
-    return extensions.includes('cg.customnodes.use_everywhere');
-}
-
 app.registerExtension({
     name: "ARZUMATA.LGCTinyPerf",
     settings: [
@@ -84,6 +56,26 @@ app.registerExtension({
     async setup() {
         const LGC = LGraphCanvas;
         if (!LGC) return;
+
+        
+        // Persistent State
+        let isGhosting = false;
+        let nodes_moving = false; // tracks if nodes are being moved
+        let linksHidden = false;
+
+        // Check every frame if we are dragging something
+        let draggingCanvas = false;
+        let draggingItems = false;
+
+        const originalSettings = {
+            links: 0,
+            render_shadows: null,
+            draw_shadows: null,
+            render_connections_border: null,
+            highquality_render: null,
+            render_collapsed_slots: null,
+            ue_showlinks: null, // Store original UE showlinks setting value for restoration
+        };
 
         // Wait times for modules imports to complete
         const maxWaitTime = 500; // Maximum wait time in ms
@@ -138,28 +130,6 @@ app.registerExtension({
             console.log('[LGCTinyPerf] use_everywhere extension not found or no linkRenderController');
         }
 
-        // Persistent State
-        let isGhosting = false;
-        let nodes_moving = false; // tracks if nodes are being moved
-        let linksHidden = false;
-
-        // Check every frame if we are dragging something
-        let draggingCanvas = false;
-        let draggingItems = false;
-
-        const originalSettings = {
-            links: 0,
-            render_shadows: null,
-            draw_shadows: null,
-            render_connections_border: null,
-            highquality_render: null,
-            render_collapsed_slots: null,
-            ue_showlinks: null, // Store original UE showlinks setting value for restoration
-        };
-
-        // Check if use_everywhere is installed and log accordingly
-        const hasUseEverywhere = isUseEverywhereInstalled() || checkExtensionInList();
-        console.log(`[LGCTinyPerf] cg.customnodes.use_everywhere detected: ${hasUseEverywhere}`);
 
         // Disable FX and save original values first
         const disableFX = (canvas) => {
@@ -216,7 +186,7 @@ app.registerExtension({
         // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
         const toggleUseEverywhereRendering = (enabled) => {
             try {
-                if (!hasUseEverywhere) {
+                if (!ueExtension) {
                     console.log('[LGCTinyPerf] Skipping UE toggle - extension not detected');
                     return;
                 }
