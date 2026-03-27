@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-arzumata-lgctinyperf"
+description = "Lightweight LiteGraph performance enhancement."
+version = "1.0.0"
+license = {file = "LICENSE.md"}
+
+[project.urls]
+Repository = "https://github.com/ARZUMATA/ComfyUI-ARZUMATA-LGCTinyPerf"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "arzumata"
+DisplayName = "ComfyUI-ARZUMATA-LGCTinyPerf"
+Icon = ""
