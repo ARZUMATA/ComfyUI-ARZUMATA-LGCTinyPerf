@@ -1,4 +1,9 @@
 import { app } from "../../scripts/app.js";
+import { tryImportShared, initUEExtension, hookLinkRenderController, toggleUseEverywhereRendering } from "./ue-extension.js";
+import { updateDragState } from "./shared-state.js";
+
+// Initialize UE extension module import
+tryImportShared();
 
 app.registerExtension({
     name: "ARZUMATA.LGCTinyPerf",
@@ -46,10 +51,6 @@ app.registerExtension({
         let nodes_moving = false; // tracks if nodes are being moved
         let linksHidden = false;
 
-        // Check every frame if we are dragging something
-        let draggingCanvas = false;
-        let draggingItems = false;
-
         const originalSettings = {
             links: 0,
             render_shadows: null,
@@ -59,6 +60,16 @@ app.registerExtension({
             render_collapsed_slots: null,
             ue_showlinks: null, // Store original UE showlinks setting value for restoration
         };
+
+        // Initialize UE extension integration (handles shared module import and hooks)
+        const ueIntegration = await initUEExtension(app);
+
+        if (ueIntegration) {
+            const { linkRenderController } = ueIntegration;
+            
+            // Hook the link render controller methods
+            hookLinkRenderController(linkRenderController);
+        }
 
         // Disable FX and save original values first
         const disableFX = (canvas) => {
@@ -113,28 +124,6 @@ app.registerExtension({
         });
 
         // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
-        const toggleUseEverywhereRendering = (enabled) => {
-            try {
-                if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
-                    const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
-                    
-                    if (enabled) {
-                        // Restore to the original user setting value
-                        if (originalSettings.ue_showlinks !== null && originalSettings.ue_showlinks !== currentMode) {
-                            app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', originalSettings.ue_showlinks);
-                        }
-                    } else {
-                        originalSettings.ue_showlinks = currentMode;
-                        app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
-                    }
-                } else {
-                    console.warn(`[LGCTinyPerf] Use Everywhere Graphics.showlinks setting not found`);
-                }
-            } catch (e) {
-                console.error(`[LGCTinyPerf] Error toggling UE rendering:`, e);
-            }
-        };
-
         const startGhosting = (canvas) => {
             if (isGhosting) return;
             isGhosting = true;
@@ -157,7 +146,7 @@ app.registerExtension({
             // Hide cg_use_everywhere links during ghosting for better performance
             const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
             if (toggleUELinks) {
-                toggleUseEverywhereRendering(false);
+                toggleUseEverywhereRendering(app, false, originalSettings);
             }
         };
 
@@ -167,7 +156,7 @@ app.registerExtension({
             linksHidden = false;
             
             // Restore cg_use_everywhere links when no longer ghosting
-            toggleUseEverywhereRendering(true);
+            toggleUseEverywhereRendering(app, true, originalSettings);
         };
 
         // Hook the Prototypes
@@ -178,24 +167,23 @@ app.registerExtension({
         
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
-            // Check every frame if we are dragging something
-            draggingCanvas = this.state.draggingCanvas;
-            draggingItems = this.state.draggingItems;
+            // Update shared drag state for extension hooks to use live values
+            updateDragState(this.state.draggingCanvas, this.state.draggingItems);
             
             // Only apply ghosting if setting is enabled
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
             let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
 
             if (ghostEnabled) {
-                if (draggingCanvas && !isGhosting) {
+                if (this.state.draggingCanvas && !isGhosting) {
                     startGhosting(this);
-                } else if (!draggingCanvas && isGhosting) {
+                } else if (!this.state.draggingCanvas && isGhosting) {
                     stopGhosting(this);
                 }
             }
 
             if (hideConnections) {
-                if (draggingItems || isGhosting) {
+                if (this.state.draggingItems || isGhosting) {
                     hideLinks();
                 } else {
                     showLinks();
