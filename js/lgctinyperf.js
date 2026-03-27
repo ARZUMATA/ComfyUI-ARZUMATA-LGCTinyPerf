@@ -1,19 +1,8 @@
 import { app } from "../../scripts/app.js";
+import { tryImportShared, initUEExtension, hookLinkRenderController, toggleUseEverywhereRendering } from "./ue-extension.js";
+import { updateDragState } from "./shared-state.js";
 
-// Optional import  UE extension shared module 
-let ueExtensionShared = null;
-
-async function tryImportShared() {
-    try {
-        const imported = await import("../cg-use-everywhere/shared.js");
-        ueExtensionShared = imported.shared;
-        console.log('[LGCTinyPerf] cg-use-everywhere shared module loaded');
-    } catch (e) {
-        console.log('[LGCTinyPerf] cg-use-everywhere not installed, link rendering hooks disabled');
-    }
-}
-
-// Try to import early, but don't block extension loading
+// Initialize UE extension module import
 tryImportShared();
 
 app.registerExtension({
@@ -57,15 +46,10 @@ app.registerExtension({
         const LGC = LGraphCanvas;
         if (!LGC) return;
 
-        
         // Persistent State
         let isGhosting = false;
         let nodes_moving = false; // tracks if nodes are being moved
         let linksHidden = false;
-
-        // Check every frame if we are dragging something
-        let draggingCanvas = false;
-        let draggingItems = false;
 
         const originalSettings = {
             links: 0,
@@ -77,59 +61,15 @@ app.registerExtension({
             ue_showlinks: null, // Store original UE showlinks setting value for restoration
         };
 
-        // Wait times for modules imports to complete
-        const maxWaitTime = 500; // Maximum wait time in ms
-        const checkInterval = 50; // Check every 50ms
-        let waitedTime = 0;
-        
-        while (!ueExtensionShared && waitedTime < maxWaitTime) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waitedTime += checkInterval;
-        }
+        // Initialize UE extension integration (handles shared module import and hooks)
+        const ueIntegration = await initUEExtension(app);
 
-        // Hook cg.customnodes.use_everywhere extension for link rendering control
-        const ueExtension = app.extensions.find(e => e.name === "cg.customnodes.use_everywhere");
-        
-        if (ueExtension && ueExtensionShared?.linkRenderController) {
-            console.log('[LGCTinyPerf] use_everywhere extension found with shared module');
+        if (ueIntegration) {
+            const { linkRenderController } = ueIntegration;
             
-            // Check imported shared module - THIS IS WHERE linkRC IS!
-            const linkRC = ueExtensionShared.linkRenderController;
-            
-            // Store original method references BEFORE replacing
-            const originalDisableAll = linkRC.disable_all_connected_widgets;
-            const originalEnableAll = linkRC.enable_all_disabled_widgets;
-            
-            console.log('[LGCTinyPerf] Methods found:', {
-                disable_all_connected_widgets: typeof originalDisableAll,
-                enable_all_disabled_widgets: typeof originalEnableAll,
-            });
-            
-            // Hook disable_all_connected_widgets
-            if (typeof originalDisableAll === 'function') {
-                linkRC.disable_all_connected_widgets = function(...args) {
-                    if (draggingCanvas || draggingItems) {
-                        return;
-                    }
-                    return originalDisableAll.apply(this, args);
-                };
-                // console.log('[LGCTinyPerf] Hooked linkRC.disable_all_connected_widgets');
-            }
-            
-            // Hook enable_all_disabled_widgets
-            if (typeof originalEnableAll === 'function') {
-                linkRC.enable_all_disabled_widgets = function(...args) {
-                    if (draggingCanvas || draggingItems) {
-                        return;
-                    }
-                    return originalEnableAll.apply(this, args);
-                };
-                // console.log('[LGCTinyPerf] Hooked linkRC.enable_all_disabled_widgets');
-            }
-        } else {
-            console.log('[LGCTinyPerf] use_everywhere extension not found or no linkRenderController');
+            // Hook the link render controller methods
+            hookLinkRenderController(linkRenderController);
         }
-
 
         // Disable FX and save original values first
         const disableFX = (canvas) => {
@@ -184,33 +124,6 @@ app.registerExtension({
         });
 
         // Toggle cg_use_everywhere link rendering when nodes are moving or ghosting
-        const toggleUseEverywhereRendering = (enabled) => {
-            try {
-                if (!ueExtension) {
-                    console.log('[LGCTinyPerf] Skipping UE toggle - extension not detected');
-                    return;
-                }
-
-                if (app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks') !== undefined) {
-                    const currentMode = app.ui.settings.getSettingValue('Use Everywhere.Graphics.showlinks');
-                    
-                    if (enabled) {
-                        // Restore to the original user setting value
-                        if (originalSettings.ue_showlinks !== null && originalSettings.ue_showlinks !== currentMode) {
-                            app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', originalSettings.ue_showlinks);
-                        }
-                    } else {
-                        originalSettings.ue_showlinks = currentMode;
-                        app.ui.settings.setSettingValue('Use Everywhere.Graphics.showlinks', 0);
-                    }
-                } else {
-                    console.warn(`[LGCTinyPerf] Use Everywhere Graphics.showlinks setting not found`);
-                }
-            } catch (e) {
-                console.error(`[LGCTinyPerf] Error toggling UE rendering:`, e);
-            }
-        };
-
         const startGhosting = (canvas) => {
             if (isGhosting) return;
             isGhosting = true;
@@ -233,7 +146,7 @@ app.registerExtension({
             // Hide cg_use_everywhere links during ghosting for better performance
             const toggleUELinks = app.ui.settings.getSettingValue('LGCTinyPerf.ToggleUELinks');
             if (toggleUELinks) {
-                toggleUseEverywhereRendering(false);
+                toggleUseEverywhereRendering(app, false, originalSettings);
             }
         };
 
@@ -243,7 +156,7 @@ app.registerExtension({
             linksHidden = false;
             
             // Restore cg_use_everywhere links when no longer ghosting
-            toggleUseEverywhereRendering(true);
+            toggleUseEverywhereRendering(app, true, originalSettings);
         };
 
         // Hook the Prototypes
@@ -254,24 +167,23 @@ app.registerExtension({
         
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
-            // Check every frame if we are dragging something
-            draggingCanvas = this.state.draggingCanvas;
-            draggingItems = this.state.draggingItems;
+            // Update shared drag state for extension hooks to use live values
+            updateDragState(this.state.draggingCanvas, this.state.draggingItems);
             
             // Only apply ghosting if setting is enabled
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
             let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
 
             if (ghostEnabled) {
-                if (draggingCanvas && !isGhosting) {
+                if (this.state.draggingCanvas && !isGhosting) {
                     startGhosting(this);
-                } else if (!draggingCanvas && isGhosting) {
+                } else if (!this.state.draggingCanvas && isGhosting) {
                     stopGhosting(this);
                 }
             }
 
             if (hideConnections) {
-                if (draggingItems || isGhosting) {
+                if (this.state.draggingItems || isGhosting) {
                     hideLinks();
                 } else {
                     showLinks();
