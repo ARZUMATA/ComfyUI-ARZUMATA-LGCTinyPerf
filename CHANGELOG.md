@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] - 2026-03-28
+
+### Added
+
+- **Node 2.0 (Vue Nodes) Ghosting Mode Support**
+  - Partial support for Vue nodes mode ghosting
+
 ## [1.0.0] - 2026-03-27
 
 ### Initial Release

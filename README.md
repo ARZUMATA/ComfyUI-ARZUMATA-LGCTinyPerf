@@ -11,6 +11,10 @@ This custom node applies performance optimizations to the ComfyUI LiteGraph canv
 - **Ghosting mode** - Temporarily hides nodes/groups while dragging for smoother interaction
 - **Minimalist UI** - Basic box rendering during performance-critical operations
 
+**Nodes 2.0** (Vue nodes) are supported. A bit clunky though but it works.
+
+Average user may not notice difference but it helps with improving performance on large workflows.
+
 ## Installation
 
 Place this folder in your `ComfyUI/custom_nodes/` directory.

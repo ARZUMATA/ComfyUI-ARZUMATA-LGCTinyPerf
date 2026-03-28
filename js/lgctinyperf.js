@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { tryImportShared, initUEExtension, hookLinkRenderController, toggleUseEverywhereRendering } from "./ue-extension.js";
-import { updateDragState } from "./shared-state.js";
+import { getDragState, sharedState, updateDragState } from "./shared-state.js";
 
 // Initialize UE extension module import
 tryImportShared();
@@ -61,7 +61,7 @@ app.registerExtension({
             ue_showlinks: null, // Store original UE showlinks setting value for restoration
         };
 
-        // Initialize UE extension integration (handles shared module import and hooks)
+        // Initialize UE extension integration
         const ueIntegration = await initUEExtension(app);
 
         if (ueIntegration) {
@@ -89,10 +89,10 @@ app.registerExtension({
             canvas.render_connections_border = false;   // No connection border
             canvas.highquality_render = false;          // Force standard render
             canvas.render_collapsed_slots = false;      // Green dot thingy on collapsed nodes
-            console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Disabled");
+            console.log("ARZUMATA LGCTinyPerf: Shadows and FX Disabled");
         };
 
-        // Restore original settings - Enable FX (only restore non-null values)
+        // Restore original settings
         const enableFX = (canvas) => {
             if (!canvas) return;
             
@@ -102,10 +102,10 @@ app.registerExtension({
             if (originalSettings.highquality_render !== null) canvas.highquality_render = originalSettings.highquality_render;
             if (originalSettings.render_collapsed_slots !== null) canvas.render_collapsed_slots = originalSettings.render_collapsed_slots;
             
-            console.log("ARZUMATA LGCTinyPerf Patch: Shadows and FX Enabled");
+            console.log("ARZUMATA LGCTinyPerf: Shadows and FX Enabled");
         };
 
-        // Handle DisableFX setting change - apply or revert based on checkbox state
+        // Handle DisableFX setting change
         const handleDisableFXSettingChange = (newValue) => {
             if (!app.canvas) return;
             
@@ -159,6 +159,72 @@ app.registerExtension({
             toggleUseEverywhereRendering(app, true, originalSettings);
         };
 
+        /**
+         * Apply minimal CSS to Vue nodes with colored headers.
+         * Hides all slots, widgets, and body content - only shows header bar.
+         */
+        const applyVueNodesGhostCSS = () => {
+            if (!app.canvas || !LiteGraph.vueNodesMode) return;
+            
+            const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
+            if (!ghostEnabled) {
+                removeVueNodesGhostCSS();
+                return;
+            }
+
+            if (isGhosting) return;
+            
+            isGhosting = true;
+            
+            let ghostStyle = document.getElementById('lgctinyperf-ghost-style');
+            if (!ghostStyle) {
+                ghostStyle = document.createElement('style');
+                ghostStyle.id = 'lgctinyperf-ghost-style';
+                ghostStyle.type = 'text/css';
+                document.head.appendChild(ghostStyle);
+            }
+
+            // Minimal CSS - hide all slots, widgets, body content; only header visible
+            const minimalCSS = `
+                
+                /* Hide node body container */
+                
+                .bg-component-node-background {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                }
+                
+                /* Hide widgets grid container */
+                [class*="grid-cols-"][class*="gap-y-"] {
+                    display: none !important;
+                }
+            `;
+
+            ghostStyle.textContent = minimalCSS;
+            
+            // Force reflow to apply styles immediately
+            document.body.offsetHeight;
+            
+            // console.log("ARZUMATA LGCTinyPerf: Vue Nodes Minimal CSS Applied (header only)");
+        };
+
+        /**
+         * Remove simplified CSS and restore normal styling.
+         */
+        const removeVueNodesGhostCSS = () => {
+            if (!isGhosting) return;
+            
+            isGhosting = false;
+            
+            const ghostStyle = document.getElementById('lgctinyperf-ghost-style');
+            if (ghostStyle) {
+                ghostStyle.remove();
+            }
+            
+            // console.log("ARZUMATA LGCTinyPerf: Vue Nodes CSS Restored");
+        };
+
         // Hook the Prototypes
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
@@ -174,16 +240,41 @@ app.registerExtension({
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
             let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
 
-            if (ghostEnabled) {
+            if (ghostEnabled && !LiteGraph.vueNodesMode) {
                 if (this.state.draggingCanvas && !isGhosting) {
                     startGhosting(this);
                 } else if (!this.state.draggingCanvas && isGhosting) {
                     stopGhosting(this);
                 }
             }
+            
+            // Apply Vue nodes minimal CSS during interactions
+            if (ghostEnabled && LiteGraph.vueNodesMode) {
+                if ((this.state.draggingCanvas || this.state.draggingItems) && !isGhosting) {
+                    applyVueNodesGhostCSS();
+                } else if (!this.state.draggingCanvas && !this.state.draggingItems && isGhosting) {
+                    removeVueNodesGhostCSS();
+                }
+            }
+
+            const canvas = LGraphCanvas.active_canvas;
+
+            if (canvas) {
+                // Check if Vue mode is active and items are selected/dirty
+                const isVueMode = LiteGraph.vueNodesMode;
+                const hasSelectedItems = canvas.selectedItems.size > 0;
+                const isDirty = canvas.dirty_canvas || canvas.dirty_bgcanvas;
+                
+                // A bit dirty check but that will do.
+                updateDragState(
+                    canvas.state.draggingCanvas,
+                    (isVueMode && hasSelectedItems) || canvas.isDragging,
+                    (isVueMode && hasSelectedItems)
+                );
+            }
 
             if (hideConnections) {
-                if (this.state.draggingItems || isGhosting) {
+                if (this.state.draggingItems || isGhosting || sharedState.isDraggingVueNodes) {
                     hideLinks();
                 } else {
                     showLinks();
@@ -199,7 +290,7 @@ app.registerExtension({
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
 
             // We use the 'isGhosting' flag set in the draw loop above
-            if (isGhosting && ghostEnabled) {
+            if (isGhosting && ghostEnabled && !LiteGraph.vueNodesMode) {
                 let [w, h] = node.renderingSize;
                 
                 // We also have title height as it's positioned above the node body
@@ -240,6 +331,15 @@ app.registerExtension({
 
         // Kickstart the first run
         setTimeout(() => disableFX(app.canvas), 1000);
+        
+        // Initialize Vue nodes ghost CSS state
+        if (LiteGraph.vueNodesMode && app.canvas) {
+            const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
+            if (ghostEnabled && (app.canvas.state.draggingCanvas || app.canvas.state.draggingItems)) {
+                applyVueNodesGhostCSS();
+            }
+        }
+        
         console.log("ARZUMATA LGCTinyPerf: Optimized and Ready.");
     }
 });
