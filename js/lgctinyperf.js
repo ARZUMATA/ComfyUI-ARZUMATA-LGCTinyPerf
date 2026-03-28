@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { tryImportShared, initUEExtension, hookLinkRenderController, toggleUseEverywhereRendering } from "./ue-extension.js";
-import { getDragState, updateDragState } from "./shared-state.js";
+import { getDragState, sharedState, updateDragState } from "./shared-state.js";
 
 // Initialize UE extension module import
 tryImportShared();
@@ -257,8 +257,24 @@ app.registerExtension({
                 }
             }
 
+            const canvas = LGraphCanvas.active_canvas;
+
+            if (canvas) {
+                // Check if Vue mode is active and items are selected/dirty
+                const isVueMode = LiteGraph.vueNodesMode;
+                const hasSelectedItems = canvas.selectedItems.size > 0;
+                const isDirty = canvas.dirty_canvas || canvas.dirty_bgcanvas;
+                
+                // A bit dirty check but that will do.
+                updateDragState(
+                    canvas.state.draggingCanvas,
+                    (isVueMode && hasSelectedItems) || canvas.isDragging,
+                    (isVueMode && hasSelectedItems)
+                );
+            }
+
             if (hideConnections) {
-                if (this.state.draggingItems || isGhosting) {
+                if (this.state.draggingItems || isGhosting || sharedState.isDraggingVueNodes) {
                     hideLinks();
                 } else {
                     showLinks();
