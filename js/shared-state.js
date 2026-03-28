@@ -4,6 +4,7 @@
 const sharedState = {
     draggingCanvas: false,
     draggingItems: false,
+    isDraggingVueNodes: false,
 };
 
 /**
@@ -11,9 +12,10 @@ const sharedState = {
  * @param {boolean} draggingCanvas - Whether canvas is being dragged
  * @param {boolean} draggingItems - Whether items are being dragged
  */
-function updateDragState(draggingCanvas, draggingItems) {
+function updateDragState(draggingCanvas, draggingItems, isDraggingVueNodes) {
     sharedState.draggingCanvas = draggingCanvas;
     sharedState.draggingItems = draggingItems;
+    sharedState.isDraggingVueNodes = isDraggingVueNodes;
 }
 
 /**
@@ -24,6 +26,7 @@ function getDragState() {
     return {
         draggingCanvas: sharedState.draggingCanvas,
         draggingItems: sharedState.draggingItems,
+        isDraggingVueNodes: sharedState.isDraggingVueNodes,
     };
 }
 
