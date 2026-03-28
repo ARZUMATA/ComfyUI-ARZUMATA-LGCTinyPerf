@@ -185,54 +185,8 @@ app.registerExtension({
 
             // Minimal CSS - hide all slots, widgets, body content; only header visible
             const minimalCSS = `
-                /* Node container - transparent background */
-                .lg-node {
-                    background: transparent !important;
-                    box-shadow: none !important;
-                }
                 
-                /* Header area - show colored bar */
-                // [class*="header"],
-                // [data-testid^="node-header-"] {
-                //     display: flex !important;
-                //     opacity: 1 !important;
-                //     visibility: visible !important;
-                // }
-                
-                /* Header title - colored bar based on node color */
-                // .node-header-title,
-                // [class*="header-title"] {
-                //     background-color: var(--node-color, #444) !important;
-                //     height: 20px !important;
-                //     display: flex !important;
-                //     align-items: center !important;
-                //     justify-content: center !important;
-                // }
-                
-                /* Collapsed nodes - smaller header */
-                // .lg-node.collapsed [class*="header-title"],
-                // .lg-node.collapsed [data-testid^="node-header-"] {
-                //     height: 16px !important;
-                //     background-color: #333 !important;
-                // }
-                
-                /* Expanded nodes - taller header */
-                // .lg-node:not(.collapsed) [class*="header-title"],
-                // .lg-node:not(.collapsed) [data-testid^="node-header-"] {
-                //     height: 24px !important;
-                // }
-                
-                /* Hide all slots (inputs/outputs) - the flex items with cursor-crosshair */
-                // .lg-slot,
-                // [class*="slot"],
-                // [class*="grid-cols-"],
-                // [data-testid^="node-slots-"] {
-                //     display: none !important;
-                //     visibility: hidden !important;
-                //     opacity: 0 !important;
-                // }
-                
-                /* Hide node body container (flex flex-1 flex-col gap-1 bg-component-node-background pt-1 pb-3 rounded-b-2xl) */
+                /* Hide node body container */
                 
                 .bg-component-node-background {
                     display: none !important;
@@ -251,7 +205,7 @@ app.registerExtension({
             // Force reflow to apply styles immediately
             document.body.offsetHeight;
             
-            console.log("ARZUMATA LGCTinyPerf: Vue Nodes Minimal CSS Applied (header only)");
+            // console.log("ARZUMATA LGCTinyPerf: Vue Nodes Minimal CSS Applied (header only)");
         };
 
         /**
@@ -267,7 +221,7 @@ app.registerExtension({
                 ghostStyle.remove();
             }
             
-            console.log("ARZUMATA LGCTinyPerf: Vue Nodes CSS Restored");
+            // console.log("ARZUMATA LGCTinyPerf: Vue Nodes CSS Restored");
         };
 
         // Hook the Draw Loop
