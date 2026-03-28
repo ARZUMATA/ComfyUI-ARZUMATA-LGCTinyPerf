@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { tryImportShared, initUEExtension, hookLinkRenderController, toggleUseEverywhereRendering } from "./ue-extension.js";
-import { updateDragState } from "./shared-state.js";
+import { getDragState, updateDragState } from "./shared-state.js";
 
 // Initialize UE extension module import
 tryImportShared();
@@ -46,7 +46,7 @@ app.registerExtension({
             name: 'Vue Nodes Ghost Mode',
             type: 'boolean',
             defaultValue: true,
-            tooltip: "When Vue nodes are enabled and dragging, shows only simple boxes with borders (no text/content). Significantly improves FPS.",
+            tooltip: "When Vue nodes are enabled and dragging, shows simplified boxes with colored headers (collapsed vs expanded). Significantly improves FPS.",
         },
     ],
 
@@ -159,7 +159,8 @@ app.registerExtension({
         };
 
         /**
-         * Apply minimal CSS to Vue nodes - only show boxes with borders, hide all text/content.
+         * Apply minimal CSS to Vue nodes with colored headers.
+         * Hides all slots, widgets, and body content - only shows header bar.
          */
         const applyVueNodesGhostCSS = () => {
             if (!app.canvas || !LiteGraph.vueNodesMode) return;
@@ -182,46 +183,66 @@ app.registerExtension({
                 document.head.appendChild(ghostStyle);
             }
 
-            // Minimal CSS - only boxes with borders, no text/content visible
+            // Minimal CSS - hide all slots, widgets, body content; only header visible
             const minimalCSS = `
-                /* Hide all node content during dragging - show only box outlines */
+                /* Node container - transparent background */
                 .lg-node {
                     background: transparent !important;
-                    border-color: #0f0 !important;
-                    border-width: 2px !important;
-                }
-                
-                /* Hide title/header completely */
-                .node-header-title,
-                [class*="header"],
-                [data-testid^="node-header-"] {
-                    display: none !important;
-                    visibility: hidden !important;
-                    opacity: 0 !important;
-                }
-                
-                /* Hide all widgets and content */
-                .node-widgets,
-                .node-content,
-                [class*="widget"],
-                [data-testid^="node-widgets-"],
-                [data-testid^="node-content-"] {
-                    display: none !important;
-                    visibility: hidden !important;
-                    opacity: 0 !important;
-                }
-                
-                /* Hide slot labels but keep slot positions */
-                .slot-label,
-                [class*="slot-label"],
-                [data-testid^="node-slots-"] {
-                    display: none !important;
-                }
-                
-                /* Keep only the node container border visible */
-                .bg-component-node-background {
-                    background: transparent !important;
                     box-shadow: none !important;
+                }
+                
+                /* Header area - show colored bar */
+                // [class*="header"],
+                // [data-testid^="node-header-"] {
+                //     display: flex !important;
+                //     opacity: 1 !important;
+                //     visibility: visible !important;
+                // }
+                
+                /* Header title - colored bar based on node color */
+                // .node-header-title,
+                // [class*="header-title"] {
+                //     background-color: var(--node-color, #444) !important;
+                //     height: 20px !important;
+                //     display: flex !important;
+                //     align-items: center !important;
+                //     justify-content: center !important;
+                // }
+                
+                /* Collapsed nodes - smaller header */
+                // .lg-node.collapsed [class*="header-title"],
+                // .lg-node.collapsed [data-testid^="node-header-"] {
+                //     height: 16px !important;
+                //     background-color: #333 !important;
+                // }
+                
+                /* Expanded nodes - taller header */
+                // .lg-node:not(.collapsed) [class*="header-title"],
+                // .lg-node:not(.collapsed) [data-testid^="node-header-"] {
+                //     height: 24px !important;
+                // }
+                
+                /* Hide all slots (inputs/outputs) - the flex items with cursor-crosshair */
+                // .lg-slot,
+                // [class*="slot"],
+                // [class*="grid-cols-"],
+                // [data-testid^="node-slots-"] {
+                //     display: none !important;
+                //     visibility: hidden !important;
+                //     opacity: 0 !important;
+                // }
+                
+                /* Hide node body container (flex flex-1 flex-col gap-1 bg-component-node-background pt-1 pb-3 rounded-b-2xl) */
+                
+                .bg-component-node-background {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                }
+                
+                /* Hide widgets grid container */
+                [class*="grid-cols-"][class*="gap-y-"] {
+                    display: none !important;
                 }
             `;
 
@@ -230,7 +251,7 @@ app.registerExtension({
             // Force reflow to apply styles immediately
             document.body.offsetHeight;
             
-            console.log("ARZUMATA LGCTinyPerf: Vue Nodes Minimal CSS Applied (boxes only)");
+            console.log("ARZUMATA LGCTinyPerf: Vue Nodes Minimal CSS Applied (header only)");
         };
 
         /**
