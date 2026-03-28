@@ -225,6 +225,17 @@ app.registerExtension({
             // console.log("ARZUMATA LGCTinyPerf: Vue Nodes CSS Restored");
         };
 
+        // Mouse state tracking
+        let isMouseDown = false;
+        
+        window.addEventListener("mousedown", (e) => {
+            isMouseDown = true;
+        });
+
+        window.addEventListener("mouseup", (e) => {
+            isMouseDown = false;
+        });
+
         // Hook the Prototypes
         const originalDraw = LGC.prototype.draw;
         const originalDrawNode = LGC.prototype.drawNode;
@@ -269,7 +280,7 @@ app.registerExtension({
                 updateDragState(
                     canvas.state.draggingCanvas,
                     (isVueMode && hasSelectedItems) || canvas.isDragging,
-                    (isVueMode && hasSelectedItems)
+                    (isVueMode && hasSelectedItems && isMouseDown)
                 );
             }
 
