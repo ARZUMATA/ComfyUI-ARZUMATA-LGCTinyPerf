@@ -245,8 +245,23 @@ app.registerExtension({
         // Hook the Draw Loop
         LGC.prototype.draw = function() {
             // Update shared drag state for extension hooks to use live values
-            updateDragState(this.state.draggingCanvas, this.state.draggingItems);
             
+            const canvas = LGraphCanvas.active_canvas;
+
+            if (canvas) {
+                // Check if Vue mode is active and items are selected/dirty
+                const isVueMode = LiteGraph.vueNodesMode;
+                const hasSelectedItems = canvas.selectedItems.size > 0;
+                const isDirty = canvas.dirty_canvas || canvas.dirty_bgcanvas;
+
+                // A bit dirty check but that will do.
+                updateDragState(
+                    canvas.state.draggingCanvas,
+                    (isVueMode && hasSelectedItems) || canvas.isDragging,
+                    (isVueMode && hasSelectedItems && isMouseDown)
+                );
+            }
+
             // Only apply ghosting if setting is enabled
             const ghostEnabled = app.ui.settings.getSettingValue('LGCTinyPerf.GhostingEnabled');
             let hideConnections = app.ui.settings.getSettingValue('LGCTinyPerf.HideConnections');
@@ -266,22 +281,6 @@ app.registerExtension({
                 } else if (!this.state.draggingCanvas && !this.state.draggingItems && isGhosting) {
                     removeVueNodesGhostCSS();
                 }
-            }
-
-            const canvas = LGraphCanvas.active_canvas;
-
-            if (canvas) {
-                // Check if Vue mode is active and items are selected/dirty
-                const isVueMode = LiteGraph.vueNodesMode;
-                const hasSelectedItems = canvas.selectedItems.size > 0;
-                const isDirty = canvas.dirty_canvas || canvas.dirty_bgcanvas;
-                
-                // A bit dirty check but that will do.
-                updateDragState(
-                    canvas.state.draggingCanvas,
-                    (isVueMode && hasSelectedItems) || canvas.isDragging,
-                    (isVueMode && hasSelectedItems && isMouseDown)
-                );
             }
 
             if (hideConnections) {
