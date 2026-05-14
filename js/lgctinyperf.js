@@ -247,11 +247,12 @@ app.registerExtension({
             // Update shared drag state for extension hooks to use live values
             
             const canvas = LGraphCanvas.active_canvas;
+            let hasSelectedItems = 0;
 
             if (canvas) {
                 // Check if Vue mode is active and items are selected/dirty
                 const isVueMode = LiteGraph.vueNodesMode;
-                const hasSelectedItems = canvas.selectedItems.size > 0;
+                hasSelectedItems = canvas.selectedItems.size > 0;
                 const isDirty = canvas.dirty_canvas || canvas.dirty_bgcanvas;
 
                 // A bit dirty check but that will do.
@@ -284,7 +285,7 @@ app.registerExtension({
             }
 
             if (hideConnections) {
-                if (this.state.draggingItems || isGhosting || sharedState.isDraggingVueNodes) {
+                if (this.state.draggingItems || isGhosting || sharedState.isDraggingVueNodes || (app.canvas.links_render_mode == -1 && hasSelectedItems)) {
                     hideLinks();
                 } else {
                     showLinks();
